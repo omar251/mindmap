@@ -1,6 +1,9 @@
 import argparse
 import json
 import re
+import sys
+import os
+from pathlib import Path
 from markdown_it import MarkdownIt
 
 class MindMap:
@@ -28,11 +31,24 @@ class MindMap:
         return json.dumps(self.nodes), json.dumps(self.edges)
 
     def render(self, filename, markdown_content):
-        nodes_json, edges_json = self.to_vis_data()
+        """Render the mind map to an HTML file.
         
-        # Convert markdown to HTML for better display
-        md_parser = MarkdownIt()
-        html_content = md_parser.render(markdown_content)
+        Args:
+            filename: Output filename (without extension)
+            markdown_content: Original markdown content for display
+            
+        Raises:
+            PermissionError: If unable to write to output file
+            OSError: If other file system errors occur
+        """
+        try:
+            nodes_json, edges_json = self.to_vis_data()
+            
+            # Convert markdown to HTML for better display
+            md_parser = MarkdownIt()
+            html_content = md_parser.render(markdown_content)
+        except Exception as e:
+            raise RuntimeError(f"Error processing markdown content: {e}") from e
         
         # Add line numbers to the HTML content for easier targeting
         lines = markdown_content.split('\n')
@@ -324,15 +340,61 @@ class MindMap:
             html_content=html_content
         )
         
-        with open(f"{filename}.html", "w", encoding="utf-8") as f:
-            f.write(html_content_formatted)
+        output_path = f"{filename}.html"
+        try:
+            # Ensure output directory exists
+            output_dir = os.path.dirname(output_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+                
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(html_content_formatted)
+        except PermissionError:
+            raise PermissionError(f"Permission denied: Cannot write to '{output_path}'. Check file permissions and ensure the directory is writable.")
+        except OSError as e:
+            raise OSError(f"Error writing to '{output_path}': {e}") from e
 
 def parse_markdown(file_path):
-    md_parser = MarkdownIt()
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
+    """Parse a markdown file and create a mind map structure.
+    
+    Args:
+        file_path: Path to the markdown file
+        
+    Returns:
+        MindMap: The parsed mind map object
+        
+    Raises:
+        FileNotFoundError: If the input file doesn't exist
+        PermissionError: If unable to read the input file
+        ValueError: If the file is empty or contains no valid headings
+    """
+    # Validate input file
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Input file '{file_path}' not found.")
+    
+    if not os.path.isfile(file_path):
+        raise ValueError(f"'{file_path}' is not a file.")
+    
+    try:
+        md_parser = MarkdownIt()
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except PermissionError:
+        raise PermissionError(f"Permission denied: Cannot read '{file_path}'. Check file permissions.")
+    except UnicodeDecodeError as e:
+        raise ValueError(f"Unable to decode '{file_path}' as UTF-8. Please ensure the file is a valid text file.") from e
+    except OSError as e:
+        raise OSError(f"Error reading '{file_path}': {e}") from e
+    
+    # Check if file is empty
+    if not content.strip():
+        raise ValueError(f"Input file '{file_path}' is empty.")
+    
+    try:
         lines = content.split('\n')
         tokens = md_parser.parse(content)
+    except Exception as e:
+        raise RuntimeError(f"Error parsing markdown content: {e}") from e
     
     mind_map = MindMap()
     path = []
@@ -362,20 +424,102 @@ def parse_markdown(file_path):
                     path.append(node_id)
         i += 1
 
+    # Validate that we found at least one heading
+    if not mind_map.nodes:
+        raise ValueError(f"No valid headings found in '{file_path}'. Please ensure the file contains markdown headings (# ## ### etc.).")
+
     return mind_map
 
+def validate_output_path(output_path):
+    """Validate that the output path is writable.
+    
+    Args:
+        output_path: The output file path to validate
+        
+    Raises:
+        ValueError: If the output path is invalid
+        PermissionError: If the output directory is not writable
+    """
+    # Check if output path contains invalid characters
+    if not output_path or output_path.strip() == "":
+        raise ValueError("Output filename cannot be empty.")
+    
+    # Get the directory part of the output path
+    output_dir = os.path.dirname(output_path)
+    if output_dir == "":
+        output_dir = "."
+    
+    # Check if directory exists and is writable
+    if not os.path.exists(output_dir):
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except PermissionError:
+            raise PermissionError(f"Cannot create output directory '{output_dir}'. Check permissions.")
+        except OSError as e:
+            raise OSError(f"Error creating output directory '{output_dir}': {e}") from e
+    
+    if not os.access(output_dir, os.W_OK):
+        raise PermissionError(f"Output directory '{output_dir}' is not writable. Check permissions.")
+
 def main():
-    parser = argparse.ArgumentParser(description="Generate an interactive mind map from a Markdown file.")
+    parser = argparse.ArgumentParser(
+        description="Generate an interactive mind map from a Markdown file.",
+        epilog="Example: python main.py document.md -o my-mindmap"
+    )
     parser.add_argument("input_file", help="The path to the input Markdown file.")
-    parser.add_argument("-o", "--output", default="mindmap", help="The output filename (without extension).")
-    args = parser.parse_args()
-
-    with open(args.input_file, 'r', encoding='utf-8') as f:
-        markdown_content = f.read()
-
-    mind_map = parse_markdown(args.input_file)
-    mind_map.render(args.output, markdown_content)
-    print(f"Interactive mind map saved to {args.output}.html")
+    parser.add_argument("-o", "--output", default="mindmap", 
+                       help="The output filename (without extension). Default: mindmap")
+    
+    try:
+        args = parser.parse_args()
+        
+        # Validate input file extension
+        if not args.input_file.lower().endswith(('.md', '.markdown', '.txt')):
+            print(f"Warning: '{args.input_file}' doesn't have a typical markdown extension (.md, .markdown, .txt)")
+        
+        # Validate output path
+        output_path = f"{args.output}.html"
+        validate_output_path(output_path)
+        
+        # Read markdown content
+        try:
+            with open(args.input_file, 'r', encoding='utf-8') as f:
+                markdown_content = f.read()
+        except FileNotFoundError:
+            print(f"Error: Input file '{args.input_file}' not found.", file=sys.stderr)
+            sys.exit(1)
+        except PermissionError:
+            print(f"Error: Permission denied reading '{args.input_file}'.", file=sys.stderr)
+            sys.exit(1)
+        except UnicodeDecodeError:
+            print(f"Error: Unable to decode '{args.input_file}' as UTF-8. Please ensure it's a valid text file.", file=sys.stderr)
+            sys.exit(1)
+        except OSError as e:
+            print(f"Error: Unable to read '{args.input_file}': {e}", file=sys.stderr)
+            sys.exit(1)
+        
+        # Parse markdown and create mind map
+        try:
+            mind_map = parse_markdown(args.input_file)
+        except (FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        
+        # Render the mind map
+        try:
+            mind_map.render(args.output, markdown_content)
+            print(f"Success: Interactive mind map saved to {args.output}.html")
+            print(f"  Open the file in your web browser to view the mind map.")
+        except (PermissionError, OSError, RuntimeError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user.", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
