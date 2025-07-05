@@ -138,6 +138,23 @@
         #markdown-html a:hover {{
             text-decoration: underline;
         }}
+        
+        /* HTML view highlighting styles */
+        .html-highlighted-heading {{
+            background-color: #ffeb3b !important;
+            padding: 0.5em !important;
+            margin: 0 -0.5em !important;
+            border-left: 4px solid #ffc107 !important;
+            border-radius: 4px !important;
+        }}
+        
+        .html-highlighted-content {{
+            background-color: #e8f5e8 !important;
+            padding: 0.5em !important;
+            margin: 0.2em -0.5em !important;
+            border-left: 4px solid #4caf50 !important;
+            border-radius: 4px !important;
+        }}
         .controls {{
             position: absolute;
             top: 10px;
@@ -350,11 +367,16 @@
             var sectionBounds = findSectionBounds(nodeId);
             if (!sectionBounds) return;
             
-            // Highlight the entire section
+            // Highlight in both raw and HTML views
             highlightSection(sectionBounds.startLine, sectionBounds.endLine);
+            highlightHtmlSection(node.label, node.level);
             
-            // Scroll to the section
-            scrollToLine(sectionBounds.startLine);
+            // Scroll to the section in the currently visible view
+            if (isHtmlView) {{
+                scrollToHtmlSection(node.label, node.level);
+            }} else {{
+                scrollToLine(sectionBounds.startLine);
+            }}
         }}
         
         function findSectionBounds(nodeId) {{
@@ -435,6 +457,73 @@
                 markdownContent.scrollTop = elementTop - containerHeight / 2;
             }}
         }}
+        
+        function highlightHtmlSection(nodeLabel, nodeLevel) {{
+            var htmlContainer = document.getElementById('markdown-html');
+            if (!htmlContainer) return;
+            
+            // Find the heading element that matches the node label
+            var headings = htmlContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
+            var targetHeading = null;
+            
+            for (var i = 0; i < headings.length; i++) {{
+                if (headings[i].textContent.trim() === nodeLabel.trim()) {{
+                    targetHeading = headings[i];
+                    break;
+                }}
+            }}
+            
+            if (!targetHeading) return;
+            
+            // Add highlight class to the heading
+            targetHeading.classList.add('html-highlighted-heading');
+            
+            // Find and highlight the section content
+            var currentElement = targetHeading.nextElementSibling;
+            var targetLevel = parseInt(targetHeading.tagName.charAt(1)); // Extract number from H1, H2, etc.
+            
+            while (currentElement) {{
+                // Stop if we hit another heading of the same or higher level
+                if (currentElement.tagName && currentElement.tagName.match(/^H[1-6]$/)) {{
+                    var currentLevel = parseInt(currentElement.tagName.charAt(1));
+                    if (currentLevel <= targetLevel) {{
+                        break;
+                    }}
+                }}
+                
+                // Add highlight class to content elements
+                if (currentElement.tagName && 
+                    ['P', 'UL', 'OL', 'BLOCKQUOTE', 'PRE', 'DIV'].includes(currentElement.tagName)) {{
+                    currentElement.classList.add('html-highlighted-content');
+                }}
+                
+                currentElement = currentElement.nextElementSibling;
+            }}
+        }}
+        
+        function scrollToHtmlSection(nodeLabel, nodeLevel) {{
+            var htmlContainer = document.getElementById('markdown-html');
+            if (!htmlContainer) return;
+            
+            // Find the heading element that matches the node label
+            var headings = htmlContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
+            var targetHeading = null;
+            
+            for (var i = 0; i < headings.length; i++) {{
+                if (headings[i].textContent.trim() === nodeLabel.trim()) {{
+                    targetHeading = headings[i];
+                    break;
+                }}
+            }}
+            
+            if (targetHeading) {{
+                var elementTop = targetHeading.offsetTop;
+                var containerHeight = htmlContainer.clientHeight;
+                
+                // Scroll to center the heading in the view
+                htmlContainer.scrollTop = elementTop - containerHeight / 4;
+            }}
+        }}
 
         function clearHighlights() {{
             // Clear old-style highlights
@@ -459,6 +548,12 @@
                 
                 codeElement.innerHTML = newLines.join('\\n');
             }}
+            
+            // Clear HTML view highlights
+            var htmlHighlighted = document.querySelectorAll('.html-highlighted-heading, .html-highlighted-content');
+            htmlHighlighted.forEach(function(el) {{
+                el.classList.remove('html-highlighted-heading', 'html-highlighted-content');
+            }});
         }}
 
         function toggleView() {{
