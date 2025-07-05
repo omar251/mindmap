@@ -1,0 +1,16 @@
+// Mind Map
+digraph {
+	node [shape=box style=rounded]
+	rankdir=TB splines=ortho
+	node_0 [label="Main Topic"]
+	node_1 [label="Sub-Topic 1"]
+	node_0 -> node_1
+	node_2 [label="Detail A"]
+	node_1 -> node_2
+	node_3 [label="Detail B"]
+	node_1 -> node_3
+	node_4 [label="Sub-Topic 2"]
+	node_0 -> node_4
+	node_5 [label="Detail C"]
+	node_4 -> node_5
+}
