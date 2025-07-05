@@ -87,6 +87,25 @@ class MindMap:
 
         var network = new vis.Network(container, data, options);
 
+        // Helper function to get all descendants of a node
+        function getDescendants(nodeId) {{
+            var descendants = [];
+            var stack = [nodeId];
+            while (stack.length > 0) {{
+                var current = stack.pop();
+                var childEdges = allEdges.get({{
+                    filter: function(edge) {{
+                        return edge.from === current;
+                    }}
+                }});
+                childEdges.forEach(function(edge) {{
+                    descendants.push(edge.to);
+                    stack.push(edge.to);
+                }});
+            }}
+            return descendants;
+        }}
+
         network.on('click', function(properties) {{
             var ids = properties.nodes;
             if (ids.length > 0) {{
@@ -97,15 +116,31 @@ class MindMap:
                     }}
                 }});
 
-                var updates = [];
-                childEdges.forEach(function(edge) {{
-                    var childNode = allNodes.get(edge.to);
-                    updates.push({{ id: childNode.id, hidden: !childNode.hidden }});
-                }});
-                allNodes.update(updates);
+                if (childEdges.length > 0) {{
+                    var childNodeIds = childEdges.map(function(edge) {{ return edge.to; }});
+                    var childNodes = allNodes.get(childNodeIds);
+
+                    var anyHidden = childNodes.some(function(node) {{ return node.hidden; }});
+
+                    if (anyHidden) {{
+                        // Show direct children
+                        var updates = childNodeIds.map(function(id) {{
+                            return {{ id: id, hidden: false }};
+                        }});
+                        allNodes.update(updates);
+                    }} else {{
+                        // Hide entire subtree (all descendants)
+                        var descendants = getDescendants(clickedNodeId);
+                        var updates = descendants.map(function(id) {{
+                            return {{ id: id, hidden: true }};
+                        }});
+                        allNodes.update(updates);
+                    }}
+                }}
             }}
         }});
         
+        // Initially hide nodes with level > 1
         var updates = [];
         allNodes.forEach(function(node) {{
             if (node.level > 1) {{
