@@ -5,7 +5,9 @@ build/
 dist/
 wheels/
 *.egg-info
+# Generated HTML files (but keep template.html)
 *.html
+!template.html
 
 # Virtual environments
 .venv
