@@ -6,7 +6,7 @@ This project is a Python application that takes a Markdown file and generates a 
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/mindmap.git
+    git clone https://github.com/omar251/mindmap.git
     cd mindmap
     ```
 
