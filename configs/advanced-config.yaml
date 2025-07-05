@@ -1,0 +1,39 @@
+# Advanced Mindmap Configuration
+# Demonstrates all new features
+
+# Theme and visual settings
+theme: colorful
+layout: force_directed
+
+# Custom color palette
+colors:
+  - "#e91e63"  # Pink
+  - "#9c27b0"  # Purple  
+  - "#673ab7"  # Deep Purple
+  - "#3f51b5"  # Indigo
+  - "#2196f3"  # Blue
+  - "#00bcd4"  # Cyan
+  - "#009688"  # Teal
+  - "#4caf50"  # Green
+
+# Layout settings
+maxWidth: 350
+spacingHorizontal: 120
+spacingVertical: 10
+lineWidth: 3
+
+# Animation settings
+duration: 800
+initialExpandLevel: 3
+
+# Interaction settings
+zoom: true
+pan: true
+toolbar: true
+
+# Plugin configuration
+plugins:
+  math: true              # Enable LaTeX math rendering
+  code-highlight: true    # Enable syntax highlighting
+  emoji: true            # Enable emoji shortcuts
+  links: true            # Enable enhanced links

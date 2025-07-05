@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{title}</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    
+    <!-- Plugin CSS -->
+    {plugin_css}
+    
+    <!-- Plugin JavaScript -->
+    {plugin_js}
+    <style type="text/css">
+        body {{
+            display: flex;
+            flex-direction: row;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }}
+        #mynetwork {{
+            width: 50%;
+            height: 100vh;
+            border: 1px solid lightgray;
+        }}
+        #markdown-content {{
+            width: 50%;
+            height: 100vh;
+            border: 1px solid lightgray;
+            padding: 10px;
+            overflow: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            background-color: #f8f9fa;
+        }}
+        .line-number {{
+            color: #666;
+            margin-right: 10px;
+            user-select: none;
+        }}
+        .line-highlighted {{
+            background-color: #ffeb3b !important;
+            display: block;
+            margin: 0 -10px;
+            padding: 2px 10px;
+            border-left: 4px solid #ffc107;
+        }}
+        .section-highlighted {{
+            background-color: #e8f5e8 !important;
+            display: block;
+            margin: 0 -10px;
+            padding: 2px 10px;
+            border-left: 4px solid #4caf50;
+        }}
+        
+        /* Legacy classes for backwards compatibility */
+        .highlighted-line {{
+            background-color: #ffeb3b;
+            padding: 2px 0;
+            margin: 0 -10px;
+            padding-left: 10px;
+            border-left: 4px solid #ffc107;
+        }}
+        .highlighted-section {{
+            background-color: #e8f5e8;
+            border-left: 4px solid #4caf50;
+            margin: 0 -10px;
+            padding-left: 10px;
+        }}
+        #markdown-html {{
+            width: 50%;
+            height: 100vh;
+            border: 1px solid lightgray;
+            padding: 20px;
+            overflow: auto;
+            background-color: white;
+            display: none;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+        }}
+        
+        /* HTML view styling */
+        #markdown-html h1, #markdown-html h2, #markdown-html h3, 
+        #markdown-html h4, #markdown-html h5, #markdown-html h6 {{
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+        }}
+        
+        #markdown-html h1 {{ font-size: 2em; color: #2c3e50; }}
+        #markdown-html h2 {{ font-size: 1.5em; color: #34495e; }}
+        #markdown-html h3 {{ font-size: 1.25em; color: #34495e; }}
+        
+        #markdown-html p {{
+            margin-bottom: 1em;
+        }}
+        
+        #markdown-html ul, #markdown-html ol {{
+            margin-bottom: 1em;
+            padding-left: 2em;
+        }}
+        
+        #markdown-html li {{
+            margin-bottom: 0.5em;
+        }}
+        
+        #markdown-html code {{
+            background-color: #f8f9fa;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9em;
+        }}
+        
+        #markdown-html pre {{
+            background-color: #f8f9fa;
+            padding: 1em;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 1em;
+        }}
+        
+        #markdown-html pre code {{
+            background: none;
+            padding: 0;
+        }}
+        
+        #markdown-html blockquote {{
+            border-left: 4px solid #ddd;
+            padding-left: 1em;
+            margin: 1em 0;
+            color: #666;
+        }}
+        
+        #markdown-html a {{
+            color: #3498db;
+            text-decoration: none;
+        }}
+        
+        #markdown-html a:hover {{
+            text-decoration: underline;
+        }}
+        .controls {{
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }}
+        .controls button {{
+            margin: 0 5px;
+            padding: 5px 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }}
+        .controls button:hover {{
+            background: #0056b3;
+        }}
+        .controls button.active {{
+            background: #28a745;
+        }}
+        
+        /* Plugin-specific styles */
+        {plugin_inline_css}
+        
+        /* Layout-specific styles */
+        {layout_styles}
+    </style>
+</head>
+<body>
+    <div id="mynetwork"></div>
+    <div id="markdown-content">
+        <pre><code>{numbered_content}</code></pre>
+    </div>
+    <div id="markdown-html">
+        {html_content}
+    </div>
+    <!-- Layout Selector -->
+    {layout_selector}
+    
+    <div class="controls">
+        <button id="toggle-view" onclick="toggleView()">HTML View</button>
+        <button onclick="clearHighlights()">Clear Highlights</button>
+    </div>
+    
+    <script type="text/javascript">
+        var allNodes = new vis.DataSet({nodes_json});
+        var allEdges = new vis.DataSet({edges_json});
+        var config = {config_json};
+        var layoutOptions = {layout_options};
+        var isHtmlView = false;
+
+        var container = document.getElementById('mynetwork');
+        
+        var data = {{
+            nodes: allNodes,
+            edges: allEdges
+        }};
+
+        // Apply theme-based styling
+        var themeStyles = getThemeStyles(config.theme);
+        
+        // Merge layout options with base configuration
+        var options = Object.assign({{
+            nodes: {{
+                shape: 'box',
+                margin: 10,
+                widthConstraint: {{
+                    maximum: config.maxWidth || 200
+                }},
+                font: {{
+                    size: 14,
+                    color: themeStyles.textColor
+                }},
+                color: {{
+                    background: themeStyles.nodeBackground,
+                    border: config.colors[0] || '#1976d2',
+                    highlight: {{
+                        background: '#ffeb3b',
+                        border: '#ff9800'
+                    }}
+                }}
+            }},
+            edges: {{
+                arrows: 'to',
+                color: {{
+                    color: config.colors[0] || '#1976d2'
+                }},
+                width: config.lineWidth || 2
+            }},
+            physics: {{
+                enabled: true,
+                stabilization: {{
+                    iterations: 100
+                }}
+            }},
+            interaction: {{
+                zoomView: config.zoom !== false,
+                dragView: config.pan !== false
+            }}
+        }}, layoutOptions);
+
+        var network = new vis.Network(container, data, options);
+
+        // Apply colors to nodes based on configuration
+        function applyNodeColors() {{
+            var updates = [];
+            allNodes.forEach(function(node) {{
+                var colorIndex = (node.level - 1) % config.colors.length;
+                var nodeColor = config.colors[colorIndex];
+                
+                updates.push({{
+                    id: node.id,
+                    color: {{
+                        background: themeStyles.nodeBackground,
+                        border: nodeColor
+                    }}
+                }});
+            }});
+            allNodes.update(updates);
+        }}
+
+        // Get theme-specific styles
+        function getThemeStyles(theme) {{
+            var themes = {{
+                'default': {{
+                    nodeBackground: '#e3f2fd',
+                    textColor: '#333',
+                    backgroundColor: '#ffffff'
+                }},
+                'dark': {{
+                    nodeBackground: '#424242',
+                    textColor: '#ffffff',
+                    backgroundColor: '#1e1e1e'
+                }},
+                'colorful': {{
+                    nodeBackground: '#f5f5f5',
+                    textColor: '#333',
+                    backgroundColor: '#fafafa'
+                }},
+                'minimal': {{
+                    nodeBackground: '#f9f9f9',
+                    textColor: '#666',
+                    backgroundColor: '#ffffff'
+                }}
+            }};
+            return themes[theme] || themes['default'];
+        }}
+
+        // Apply theme to document body
+        function applyTheme() {{
+            document.body.style.backgroundColor = themeStyles.backgroundColor;
+            document.body.style.color = themeStyles.textColor;
+            
+            // Apply theme to markdown content area
+            var markdownContent = document.getElementById('markdown-content');
+            if (markdownContent) {{
+                if (config.theme === 'dark') {{
+                    markdownContent.style.backgroundColor = '#2d2d2d';
+                    markdownContent.style.color = '#ffffff';
+                }} else {{
+                    markdownContent.style.backgroundColor = themeStyles.backgroundColor;
+                    markdownContent.style.color = themeStyles.textColor;
+                }}
+            }}
+            
+            // Apply theme to HTML view
+            var markdownHtml = document.getElementById('markdown-html');
+            if (markdownHtml) {{
+                if (config.theme === 'dark') {{
+                    markdownHtml.style.backgroundColor = '#1e1e1e';
+                    markdownHtml.style.color = '#ffffff';
+                }} else {{
+                    markdownHtml.style.backgroundColor = themeStyles.backgroundColor;
+                    markdownHtml.style.color = themeStyles.textColor;
+                }}
+            }}
+        }}
+
+        // Initialize theming and colors
+        applyTheme();
+        applyNodeColors();
+
+        // Helper function to get all descendants of a node
+        function getDescendants(nodeId) {{
+            var descendants = [];
+            var stack = [nodeId];
+            while (stack.length > 0) {{
+                var current = stack.pop();
+                var childEdges = allEdges.get({{
+                    filter: function(edge) {{
+                        return edge.from === current;
+                    }}
+                }});
+                childEdges.forEach(function(edge) {{
+                    descendants.push(edge.to);
+                    stack.push(edge.to);
+                }});
+            }}
+            return descendants;
+        }}
+
+        function highlightTextForNode(nodeId) {{
+            var node = allNodes.get(nodeId);
+            if (!node || !node.line_number) return;
+            
+            clearHighlights();
+            
+            // Find the section boundaries for this node
+            var sectionBounds = findSectionBounds(nodeId);
+            if (!sectionBounds) return;
+            
+            // Highlight the entire section
+            highlightSection(sectionBounds.startLine, sectionBounds.endLine);
+            
+            // Scroll to the section
+            scrollToLine(sectionBounds.startLine);
+        }}
+        
+        function findSectionBounds(nodeId) {{
+            var node = allNodes.get(nodeId);
+            if (!node || !node.line_number) return null;
+            
+            var startLine = node.line_number;
+            var nodeLevel = node.level;
+            var endLine = null;
+            
+            // Find all nodes and sort by line number to determine section boundaries
+            var allNodesArray = allNodes.get();
+            var sortedNodes = allNodesArray.filter(n => n.line_number).sort((a, b) => a.line_number - b.line_number);
+            
+            // Find the next heading at the same level or higher (lower level number)
+            for (var i = 0; i < sortedNodes.length; i++) {{
+                var currentNode = sortedNodes[i];
+                if (currentNode.line_number > startLine && currentNode.level <= nodeLevel) {{
+                    endLine = currentNode.line_number - 1;
+                    break;
+                }}
+            }}
+            
+            // If no next heading found, go to end of document
+            if (endLine === null) {{
+                var markdownContent = document.getElementById('markdown-content');
+                var lines = markdownContent.textContent.split('\\n');
+                endLine = lines.length;
+            }}
+            
+            return {{ startLine: startLine, endLine: endLine }};
+        }}
+        
+        function highlightSection(startLine, endLine) {{
+            // Get the code element containing all lines
+            var codeElement = document.querySelector('#markdown-content pre code');
+            if (!codeElement) return;
+            
+            // Split the innerHTML by newlines to get individual lines
+            var lines = codeElement.innerHTML.split('\\n');
+            var newLines = [];
+            
+            for (var i = 0; i < lines.length; i++) {{
+                var lineNum = i + 1;
+                var line = lines[i];
+                
+                if (lineNum >= startLine && lineNum <= endLine) {{
+                    // Add highlighting class to this line
+                    if (lineNum === startLine) {{
+                        // Heading line
+                        if (!line.includes('class="line-highlighted"')) {{
+                            line = line.replace('<span id="line-' + lineNum + '" class="line-number">', 
+                                              '<span id="line-' + lineNum + '" class="line-number line-highlighted">');
+                        }}
+                    }} else {{
+                        // Section content line
+                        if (!line.includes('class="section-highlighted"')) {{
+                            line = line.replace('<span id="line-' + lineNum + '" class="line-number">', 
+                                              '<span id="line-' + lineNum + '" class="line-number section-highlighted">');
+                        }}
+                    }}
+                }}
+                newLines.push(line);
+            }}
+            
+            // Update the innerHTML with highlighted lines
+            codeElement.innerHTML = newLines.join('\\n');
+        }}
+        
+        function scrollToLine(lineNumber) {{
+            var lineElement = document.getElementById('line-' + lineNumber);
+            if (lineElement) {{
+                var markdownContent = document.getElementById('markdown-content');
+                var elementTop = lineElement.offsetTop;
+                var containerHeight = markdownContent.clientHeight;
+                
+                // Scroll to center the line in the view
+                markdownContent.scrollTop = elementTop - containerHeight / 2;
+            }}
+        }}
+
+        function clearHighlights() {{
+            // Clear old-style highlights
+            var highlighted = document.querySelectorAll('.highlighted-line, .highlighted-section');
+            highlighted.forEach(function(el) {{
+                el.classList.remove('highlighted-line', 'highlighted-section');
+            }});
+            
+            // Clear new-style highlights by removing classes from line numbers
+            var codeElement = document.querySelector('#markdown-content pre code');
+            if (codeElement) {{
+                var lines = codeElement.innerHTML.split('\\n');
+                var newLines = [];
+                
+                for (var i = 0; i < lines.length; i++) {{
+                    var line = lines[i];
+                    // Remove highlighting classes
+                    line = line.replace('class="line-number line-highlighted"', 'class="line-number"');
+                    line = line.replace('class="line-number section-highlighted"', 'class="line-number"');
+                    newLines.push(line);
+                }}
+                
+                codeElement.innerHTML = newLines.join('\\n');
+            }}
+        }}
+
+        function toggleView() {{
+            var markdownContent = document.getElementById('markdown-content');
+            var markdownHtml = document.getElementById('markdown-html');
+            var toggleBtn = document.getElementById('toggle-view');
+            
+            if (isHtmlView) {{
+                markdownContent.style.display = 'block';
+                markdownHtml.style.display = 'none';
+                toggleBtn.textContent = 'HTML View';
+                toggleBtn.classList.remove('active');
+            }} else {{
+                markdownContent.style.display = 'none';
+                markdownHtml.style.display = 'block';
+                toggleBtn.textContent = 'Raw View';
+                toggleBtn.classList.add('active');
+            }}
+            isHtmlView = !isHtmlView;
+        }}
+
+        network.on('click', function(properties) {{
+            var ids = properties.nodes;
+            if (ids.length > 0) {{
+                var clickedNodeId = ids[0];
+                
+                // Highlight corresponding text
+                highlightTextForNode(clickedNodeId);
+                
+                // Existing expand/collapse logic
+                var childEdges = allEdges.get({{
+                    filter: function(edge) {{
+                        return edge.from === clickedNodeId;
+                    }}
+                }});
+
+                if (childEdges.length > 0) {{
+                    var childNodeIds = childEdges.map(function(edge) {{ return edge.to; }});
+                    var childNodes = allNodes.get(childNodeIds);
+
+                    var anyHidden = childNodes.some(function(node) {{ return node.hidden; }});
+
+                    if (anyHidden) {{
+                        // Show direct children
+                        var updates = childNodeIds.map(function(id) {{
+                            return {{ id: id, hidden: false }};
+                        }});
+                        allNodes.update(updates);
+                    }} else {{
+                        // Hide entire subtree (all descendants)
+                        var descendants = getDescendants(clickedNodeId);
+                        var updates = descendants.map(function(id) {{
+                            return {{ id: id, hidden: true }};
+                        }});
+                        allNodes.update(updates);
+                    }}
+                }}
+            }}
+        }});
+        
+        // Initially hide nodes with level > 1
+        var updates = [];
+        allNodes.forEach(function(node) {{
+            if (node.level > 1) {{
+                updates.push({{id: node.id, hidden: true}});
+            }} else {{
+                updates.push({{id: node.id, hidden: false}});
+            }}
+        }});
+        allNodes.update(updates);
+        
+        network.on("stabilizationIterationsDone", function () {{
+            network.setOptions( {{ physics: false }} );
+        }});
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {{
+            if (e.key === 'Escape') {{
+                clearHighlights();
+            }}
+            if (e.key === 'h' && e.ctrlKey) {{
+                e.preventDefault();
+                toggleView();
+            }}
+        }});
+
+        // Layout switching functions
+        {layout_javascript}
+        
+        // Initialize plugins
+        function initializePlugins() {{
+            // Initialize KaTeX if math plugin is enabled
+            if (config.plugins && config.plugins.math && typeof renderMathInElement !== 'undefined') {{
+                setTimeout(function() {{
+                    document.querySelectorAll('.katex-inline, .katex-block').forEach(function(el) {{
+                        var latex = el.getAttribute('data-katex');
+                        if (latex) {{
+                            try {{
+                                katex.render(latex, el, {{
+                                    displayMode: el.classList.contains('katex-block'),
+                                    throwOnError: false
+                                }});
+                            }} catch (e) {{
+                                console.warn('KaTeX rendering error:', e);
+                            }}
+                        }}
+                    }});
+                }}, 100);
+            }}
+            
+            // Initialize Prism if code highlighting is enabled
+            if (config.plugins && config.plugins['code-highlight'] && typeof Prism !== 'undefined') {{
+                setTimeout(function() {{
+                    Prism.highlightAll();
+                }}, 100);
+            }}
+        }}
+        
+        // Set initial layout in selector
+        setTimeout(function() {{
+            var layoutSelect = document.getElementById('layout-select');
+            if (layoutSelect && config.layout) {{
+                layoutSelect.value = config.layout;
+            }}
+            
+            // Initialize plugins
+            initializePlugins();
+        }}, 100);
+
+    </script>
+</body>
+</html>

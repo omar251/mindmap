@@ -5,20 +5,40 @@ import sys
 import os
 from pathlib import Path
 from markdown_it import MarkdownIt
+from config import MindMapConfig, get_theme
+from plugins import PluginManager
+from layouts import LayoutManager, create_layout_selector_html, create_layout_javascript
 
 class MindMap:
-    def __init__(self, title="Mind Map"):
+    def __init__(self, title="Mind Map", config=None):
         self.title = title
+        self.config = config or MindMapConfig()
         self.nodes = []
         self.edges = []
         self.node_counter = 0
+        self.plugin_manager = PluginManager()
+        self.layout_manager = LayoutManager()
+        
+        # Configure plugins based on config
+        if self.config.plugins:
+            self.plugin_manager.configure_plugins({"plugins": self.config.plugins})
 
     def add_node(self, label, level, parent_id=None, line_number=None):
         node_id = self.node_counter
         self.node_counter += 1
+        
+        # Process label through plugins
+        node_data = {
+            'id': node_id,
+            'level': level,
+            'parent_id': parent_id,
+            'line_number': line_number
+        }
+        processed_label = self.plugin_manager.process_content(label, node_data)
+        
         self.nodes.append({
             'id': node_id, 
-            'label': label, 
+            'label': processed_label, 
             'level': level, 
             'hidden': level > 1,
             'line_number': line_number
@@ -86,6 +106,12 @@ class MindMap:
             numbered_lines.append(f'<span id="line-{i}" class="line-number">{i:3d}</span> {line}')
         numbered_content = '\n'.join(numbered_lines)
         
+        # Get plugin assets
+        plugin_assets = self.plugin_manager.get_all_assets()
+        
+        # Get layout-specific options
+        layout_options = self.layout_manager.get_layout_options(self.config.layout)
+        
         # Load HTML template from external file
         html_template = self._load_template()
         html_content_formatted = html_template.format(
@@ -93,7 +119,15 @@ class MindMap:
             nodes_json=nodes_json,
             edges_json=edges_json,
             numbered_content=numbered_content,
-            html_content=html_content
+            html_content=html_content,
+            config_json=json.dumps(self.config.to_json()),
+            plugin_css='\n'.join(f'<link rel="stylesheet" href="{css}">' for css in plugin_assets['css']),
+            plugin_js='\n'.join(f'<script src="{js}"></script>' for js in plugin_assets['js']),
+            plugin_inline_css='\n'.join(plugin_assets.get('inline_css', [])),
+            layout_selector=create_layout_selector_html(),
+            layout_javascript=create_layout_javascript(),
+            layout_options=json.dumps(layout_options),
+            layout_styles=self.layout_manager.get_layout_specific_styles(self.config.layout)
         )
         
         output_path = f"{filename}.html"
@@ -110,14 +144,15 @@ class MindMap:
         except OSError as e:
             raise OSError(f"Error writing to '{output_path}': {e}") from e
 
-def parse_markdown(file_path):
+def parse_markdown(file_path, external_config=None):
     """Parse a markdown file and create a mind map structure.
     
     Args:
         file_path: Path to the markdown file
+        external_config: Optional external configuration to override frontmatter
         
     Returns:
-        MindMap: The parsed mind map object
+        tuple: (MindMap object, original_content)
         
     Raises:
         FileNotFoundError: If the input file doesn't exist
@@ -132,9 +167,8 @@ def parse_markdown(file_path):
         raise ValueError(f"'{file_path}' is not a file.")
     
     try:
-        md_parser = MarkdownIt()
         with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+            original_content = f.read()
     except PermissionError:
         raise PermissionError(f"Permission denied: Cannot read '{file_path}'. Check file permissions.")
     except UnicodeDecodeError as e:
@@ -143,16 +177,24 @@ def parse_markdown(file_path):
         raise OSError(f"Error reading '{file_path}': {e}") from e
     
     # Check if file is empty
-    if not content.strip():
+    if not original_content.strip():
         raise ValueError(f"Input file '{file_path}' is empty.")
     
+    # Extract configuration from frontmatter
+    config, content = MindMapConfig.from_frontmatter(original_content)
+    
+    # Override with external config if provided
+    if external_config:
+        config = external_config
+    
     try:
+        md_parser = MarkdownIt()
         lines = content.split('\n')
         tokens = md_parser.parse(content)
     except Exception as e:
         raise RuntimeError(f"Error parsing markdown content: {e}") from e
     
-    mind_map = MindMap()
+    mind_map = MindMap(config=config)
     path = []
 
     i = 0
@@ -184,7 +226,7 @@ def parse_markdown(file_path):
     if not mind_map.nodes:
         raise ValueError(f"No valid headings found in '{file_path}'. Please ensure the file contains markdown headings (# ## ### etc.).")
 
-    return mind_map
+    return mind_map, original_content
 
 def validate_output_path(output_path):
     """Validate that the output path is writable.
@@ -220,11 +262,25 @@ def validate_output_path(output_path):
 def main():
     parser = argparse.ArgumentParser(
         description="Generate an interactive mind map from a Markdown file.",
-        epilog="Example: python main.py document.md -o my-mindmap"
+        epilog="Example: python main.py document.md -o my-mindmap --theme dark"
     )
     parser.add_argument("input_file", help="The path to the input Markdown file.")
     parser.add_argument("-o", "--output", default="mindmap", 
                        help="The output filename (without extension). Default: mindmap")
+    parser.add_argument("-c", "--config", 
+                       help="Path to configuration file (YAML)")
+    parser.add_argument("-t", "--theme", choices=['default', 'dark', 'colorful', 'minimal'],
+                       help="Theme to use (overrides config file and frontmatter)")
+    parser.add_argument("-l", "--layout", choices=['hierarchical', 'radial', 'tree', 'force_directed', 'circular', 'timeline'],
+                       help="Layout to use for the mindmap")
+    parser.add_argument("--no-toolbar", action="store_true",
+                       help="Disable the toolbar")
+    parser.add_argument("--max-width", type=int,
+                       help="Maximum width of nodes")
+    parser.add_argument("--disable-plugins", nargs='+', 
+                       help="Disable specific plugins (math, code-highlight, emoji, links)")
+    parser.add_argument("--enable-only", nargs='+',
+                       help="Enable only specified plugins")
     
     try:
         args = parser.parse_args()
@@ -237,26 +293,54 @@ def main():
         output_path = f"{args.output}.html"
         validate_output_path(output_path)
         
-        # Read markdown content
-        try:
-            with open(args.input_file, 'r', encoding='utf-8') as f:
-                markdown_content = f.read()
-        except FileNotFoundError:
-            print(f"Error: Input file '{args.input_file}' not found.", file=sys.stderr)
-            sys.exit(1)
-        except PermissionError:
-            print(f"Error: Permission denied reading '{args.input_file}'.", file=sys.stderr)
-            sys.exit(1)
-        except UnicodeDecodeError:
-            print(f"Error: Unable to decode '{args.input_file}' as UTF-8. Please ensure it's a valid text file.", file=sys.stderr)
-            sys.exit(1)
-        except OSError as e:
-            print(f"Error: Unable to read '{args.input_file}': {e}", file=sys.stderr)
-            sys.exit(1)
+        # Load configuration
+        config = None
+        if args.config:
+            try:
+                config = MindMapConfig.from_file(args.config)
+                print(f"Loaded configuration from {args.config}")
+            except Exception as e:
+                print(f"Warning: Could not load config file '{args.config}': {e}")
+        
+        # Apply theme override
+        if args.theme:
+            config = get_theme(args.theme)
+            print(f"Using theme: {args.theme}")
+        
+        # Apply command-line overrides
+        if config and args.no_toolbar:
+            config.toolbar = False
+        if config and args.max_width:
+            config.max_width = args.max_width
+        if config and args.layout:
+            config.layout = args.layout
+            print(f"Using layout: {args.layout}")
+        
+        # Handle plugin configuration
+        if config and args.disable_plugins:
+            for plugin in args.disable_plugins:
+                if plugin in config.plugins:
+                    config.plugins[plugin] = False
+            print(f"Disabled plugins: {', '.join(args.disable_plugins)}")
+        
+        if config and args.enable_only:
+            # Disable all plugins first
+            for plugin in config.plugins:
+                config.plugins[plugin] = False
+            # Enable only specified plugins
+            for plugin in args.enable_only:
+                if plugin in config.plugins:
+                    config.plugins[plugin] = True
+            print(f"Enabled only: {', '.join(args.enable_only)}")
         
         # Parse markdown and create mind map
         try:
-            mind_map = parse_markdown(args.input_file)
+            mind_map, markdown_content = parse_markdown(args.input_file, config)
+            
+            # Show configuration info
+            if mind_map.config.theme != 'default':
+                print(f"Using configuration: theme={mind_map.config.theme}, colors={len(mind_map.config.colors)} colors")
+                
         except (FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)

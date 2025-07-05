@@ -1,0 +1,29 @@
+# Sample Mindmap Configuration
+# Use with: python main.py document.md -c sample-config.yaml
+
+# Theme selection
+theme: dark
+
+# Custom color palette (will cycle through these colors for different levels)
+colors:
+  - "#64b5f6"  # Light blue
+  - "#81c784"  # Light green  
+  - "#ffb74d"  # Orange
+  - "#ba68c8"  # Purple
+  - "#f06292"  # Pink
+  - "#4db6ac"  # Teal
+
+# Layout settings
+maxWidth: 300
+spacingHorizontal: 100
+spacingVertical: 8
+lineWidth: 3
+
+# Animation settings
+duration: 750
+initialExpandLevel: 2
+
+# Interaction settings
+zoom: true
+pan: true
+toolbar: true

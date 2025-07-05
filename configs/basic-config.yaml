@@ -1,0 +1,32 @@
+# Basic Mindmap Configuration
+# Simple configuration for getting started
+
+# Theme selection
+theme: default
+
+# Layout type
+layout: hierarchical
+
+# Basic color palette
+colors:
+  - "#1976d2"  # Blue
+  - "#388e3c"  # Green
+  - "#f57c00"  # Orange
+  - "#7b1fa2"  # Purple
+
+# Layout settings
+maxWidth: 200
+spacingHorizontal: 80
+spacingVertical: 5
+
+# Features
+toolbar: true
+zoom: true
+pan: true
+
+# Plugin settings (all enabled by default)
+plugins:
+  math: true
+  code-highlight: true
+  emoji: true
+  links: true
