@@ -417,10 +417,68 @@
                     settingsPanel.style.backgroundColor = '#2d2d2d';
                     settingsPanel.style.color = '#ffffff';
                     settingsPanel.style.borderColor = '#555';
+                    
+                    // Style form elements for dark theme
+                    var selects = settingsPanel.querySelectorAll('select');
+                    var inputs = settingsPanel.querySelectorAll('input');
+                    var labels = settingsPanel.querySelectorAll('label');
+                    var h3 = settingsPanel.querySelector('h3');
+                    
+                    selects.forEach(function(select) {{
+                        select.style.backgroundColor = '#404040';
+                        select.style.color = '#ffffff';
+                        select.style.borderColor = '#666';
+                    }});
+                    
+                    inputs.forEach(function(input) {{
+                        if (input.type !== 'checkbox') {{
+                            input.style.backgroundColor = '#404040';
+                            input.style.color = '#ffffff';
+                            input.style.borderColor = '#666';
+                        }}
+                    }});
+                    
+                    labels.forEach(function(label) {{
+                        label.style.color = '#ffffff';
+                    }});
+                    
+                    if (h3) {{
+                        h3.style.color = '#ffffff';
+                        h3.style.borderBottomColor = '#555';
+                    }}
                 }} else {{
                     settingsPanel.style.backgroundColor = '#ffffff';
                     settingsPanel.style.color = '#333';
                     settingsPanel.style.borderColor = '#ddd';
+                    
+                    // Style form elements for light theme
+                    var selects = settingsPanel.querySelectorAll('select');
+                    var inputs = settingsPanel.querySelectorAll('input');
+                    var labels = settingsPanel.querySelectorAll('label');
+                    var h3 = settingsPanel.querySelector('h3');
+                    
+                    selects.forEach(function(select) {{
+                        select.style.backgroundColor = '#ffffff';
+                        select.style.color = '#333';
+                        select.style.borderColor = '#ddd';
+                    }});
+                    
+                    inputs.forEach(function(input) {{
+                        if (input.type !== 'checkbox') {{
+                            input.style.backgroundColor = '#ffffff';
+                            input.style.color = '#333';
+                            input.style.borderColor = '#ddd';
+                        }}
+                    }});
+                    
+                    labels.forEach(function(label) {{
+                        label.style.color = '#555';
+                    }});
+                    
+                    if (h3) {{
+                        h3.style.color = '#333';
+                        h3.style.borderBottomColor = '#eee';
+                    }}
                 }}
             }}
         }}
@@ -839,6 +897,11 @@
             
             // Update color preview
             updateColorPreview();
+            
+            // Ensure settings panel styling is updated immediately
+            setTimeout(function() {{
+                applyTheme();
+            }}, 50);
         }}
         
         function changeNodeWidth(width) {{
