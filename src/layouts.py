@@ -260,28 +260,8 @@ class LayoutManager:
 
 def create_layout_selector_html() -> str:
     """Create HTML for layout selection interface."""
-    layout_manager = LayoutManager()
-    layouts = layout_manager.get_available_layouts()
-    
-    options_html = ""
-    for layout_name, description in layouts.items():
-        options_html += f'<option value="{layout_name}">{layout_name.title()} - {description}</option>\n'
-    
-    return f"""
-    <div class="layout-selector" style="position: absolute; top: 10px; left: 10px; z-index: 1000;">
-        <select id="layout-select" onchange="changeLayout(this.value)" style="
-            padding: 5px 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            background: white;
-            font-size: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        ">
-            <option value="">Select Layout...</option>
-            {options_html}
-        </select>
-    </div>
-    """
+    # This function is now deprecated - layout selection is handled by the settings panel
+    return ""
 
 
 def create_layout_javascript() -> str:

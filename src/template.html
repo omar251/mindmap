@@ -192,12 +192,89 @@
     <div id="markdown-html">
         {html_content}
     </div>
-    <!-- Layout Selector -->
-    {layout_selector}
     
     <div class="controls">
         <button id="toggle-view" onclick="toggleView()">HTML View</button>
         <button onclick="clearHighlights()">Clear Highlights</button>
+        <button id="settings-btn" onclick="toggleSettings()">Settings</button>
+    </div>
+    
+    <!-- Settings Overlay -->
+    <div class="settings-overlay" id="settings-overlay" onclick="closeSettings()"></div>
+    
+    <!-- Settings Panel -->
+    <div class="settings-panel" id="settings-panel">
+        <h3>Appearance Settings</h3>
+        
+        <div class="setting-group">
+            <label for="theme-select">Theme</label>
+            <select id="theme-select" onchange="changeTheme(this.value)">
+                <option value="default">Default</option>
+                <option value="dark">Dark</option>
+                <option value="colorful">Colorful</option>
+                <option value="minimal">Minimal</option>
+            </select>
+        </div>
+        
+        <div class="setting-group">
+            <label for="layout-select-panel">Layout</label>
+            <select id="layout-select-panel" onchange="changeLayout(this.value)">
+                <option value="hierarchical">Hierarchical</option>
+                <option value="radial">Radial</option>
+                <option value="tree">Tree</option>
+                <option value="force_directed">Force Directed</option>
+                <option value="circular">Circular</option>
+                <option value="timeline">Timeline</option>
+            </select>
+        </div>
+        
+        <div class="setting-group">
+            <label for="node-width">Max Node Width</label>
+            <input type="range" id="node-width" min="150" max="500" value="200" 
+                   oninput="changeNodeWidth(this.value)">
+            <span id="width-value">200px</span>
+        </div>
+        
+        <div class="setting-group">
+            <label for="line-width">Line Width</label>
+            <input type="range" id="line-width" min="1" max="5" value="2" 
+                   oninput="changeLineWidth(this.value)">
+            <span id="line-width-value">2px</span>
+        </div>
+        
+        <div class="setting-group">
+            <label>Plugins</label>
+            <div class="checkbox-group">
+                <div class="checkbox-item">
+                    <input type="checkbox" id="plugin-math" onchange="togglePlugin('math', this.checked)">
+                    <label for="plugin-math">Math</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="plugin-code" onchange="togglePlugin('code-highlight', this.checked)">
+                    <label for="plugin-code">Code</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="plugin-emoji" onchange="togglePlugin('emoji', this.checked)">
+                    <label for="plugin-emoji">Emoji</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="plugin-links" onchange="togglePlugin('links', this.checked)">
+                    <label for="plugin-links">Links</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="setting-group">
+            <label>Current Colors</label>
+            <div class="color-preview" id="color-preview"></div>
+        </div>
+        
+        <div class="setting-group">
+            <label>
+                <input type="checkbox" id="physics-enabled" onchange="togglePhysics(this.checked)">
+                Enable Physics Animation
+            </label>
+        </div>
     </div>
     
     <script type="text/javascript">
@@ -330,6 +407,20 @@
                 }} else {{
                     markdownHtml.style.backgroundColor = themeStyles.backgroundColor;
                     markdownHtml.style.color = themeStyles.textColor;
+                }}
+            }}
+            
+            // Apply theme to settings panel
+            var settingsPanel = document.getElementById('settings-panel');
+            if (settingsPanel) {{
+                if (config.theme === 'dark') {{
+                    settingsPanel.style.backgroundColor = '#2d2d2d';
+                    settingsPanel.style.color = '#ffffff';
+                    settingsPanel.style.borderColor = '#555';
+                }} else {{
+                    settingsPanel.style.backgroundColor = '#ffffff';
+                    settingsPanel.style.color = '#333';
+                    settingsPanel.style.borderColor = '#ddd';
                 }}
             }}
         }}
@@ -672,15 +763,127 @@
             }}
         }}
         
-        // Set initial layout in selector
-        setTimeout(function() {{
-            var layoutSelect = document.getElementById('layout-select');
-            if (layoutSelect && config.layout) {{
-                layoutSelect.value = config.layout;
-            }}
+        // Settings Panel Functions
+        function toggleSettings() {{
+            var panel = document.getElementById('settings-panel');
+            var overlay = document.getElementById('settings-overlay');
+            var isVisible = panel.style.display === 'block';
             
+            if (isVisible) {{
+                panel.style.display = 'none';
+                overlay.style.display = 'none';
+            }} else {{
+                panel.style.display = 'block';
+                overlay.style.display = 'block';
+                updateSettingsPanel();
+            }}
+        }}
+        
+        function closeSettings() {{
+            document.getElementById('settings-panel').style.display = 'none';
+            document.getElementById('settings-overlay').style.display = 'none';
+        }}
+        
+        function updateSettingsPanel() {{
+            // Update theme selector
+            document.getElementById('theme-select').value = config.theme || 'default';
+            
+            // Update layout selector
+            document.getElementById('layout-select-panel').value = config.layout || 'hierarchical';
+            
+            // Update node width
+            var nodeWidth = config.maxWidth || 200;
+            document.getElementById('node-width').value = nodeWidth;
+            document.getElementById('width-value').textContent = nodeWidth + 'px';
+            
+            // Update line width
+            var lineWidth = config.lineWidth || 2;
+            document.getElementById('line-width').value = lineWidth;
+            document.getElementById('line-width-value').textContent = lineWidth + 'px';
+            
+            // Update plugin checkboxes
+            document.getElementById('plugin-math').checked = config.plugins && config.plugins.math;
+            document.getElementById('plugin-code').checked = config.plugins && config.plugins['code-highlight'];
+            document.getElementById('plugin-emoji').checked = config.plugins && config.plugins.emoji;
+            document.getElementById('plugin-links').checked = config.plugins && config.plugins.links;
+            
+            // Update color preview
+            updateColorPreview();
+            
+            // Update physics checkbox
+            document.getElementById('physics-enabled').checked = options.physics && options.physics.enabled;
+        }}
+        
+        function updateColorPreview() {{
+            var preview = document.getElementById('color-preview');
+            preview.innerHTML = '';
+            
+            if (config.colors) {{
+                config.colors.forEach(function(color) {{
+                    var swatch = document.createElement('div');
+                    swatch.className = 'color-swatch';
+                    swatch.style.backgroundColor = color;
+                    swatch.title = color;
+                    preview.appendChild(swatch);
+                }});
+            }}
+        }}
+        
+        function changeTheme(themeName) {{
+            config.theme = themeName;
+            
+            // Update theme styles
+            themeStyles = getThemeStyles(themeName);
+            applyTheme();
+            applyNodeColors();
+            
+            // Update color preview
+            updateColorPreview();
+        }}
+        
+        function changeNodeWidth(width) {{
+            config.maxWidth = parseInt(width);
+            document.getElementById('width-value').textContent = width + 'px';
+            
+            // Update network options
+            var newOptions = Object.assign({{}}, options);
+            newOptions.nodes.widthConstraint.maximum = parseInt(width);
+            network.setOptions(newOptions);
+        }}
+        
+        function changeLineWidth(width) {{
+            config.lineWidth = parseInt(width);
+            document.getElementById('line-width-value').textContent = width + 'px';
+            
+            // Update network options
+            var newOptions = Object.assign({{}}, options);
+            newOptions.edges.width = parseInt(width);
+            network.setOptions(newOptions);
+        }}
+        
+        function togglePlugin(pluginName, enabled) {{
+            if (!config.plugins) config.plugins = {{}};
+            config.plugins[pluginName] = enabled;
+            
+            // Re-initialize plugins if needed
+            if (enabled) {{
+                setTimeout(initializePlugins, 100);
+            }}
+        }}
+        
+        function togglePhysics(enabled) {{
+            var newOptions = Object.assign({{}}, options);
+            newOptions.physics.enabled = enabled;
+            network.setOptions(newOptions);
+        }}
+        
+        // Initialize application
+        setTimeout(function() {{
             // Initialize plugins
             initializePlugins();
+            
+            // Initialize settings panel
+            updateSettingsPanel();
         }}, 100);
 
     </script>
